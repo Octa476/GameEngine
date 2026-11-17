@@ -23,7 +23,7 @@ SDL_AppResult engine::Application::init() {
 }
 
 SDL_AppResult engine::Application::onEvent(const SDL_Event &event) {
-    if (event.type == SDL_EVENT_QUIT) {
+    if (event.key.key == SDLK_ESCAPE) {
         LOG_TRACE("Window closed requested");
         return SDL_APP_SUCCESS;
     }
