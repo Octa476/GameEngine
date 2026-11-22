@@ -28,11 +28,17 @@ FetchContent_Declare(glm
   GIT_SHALLOW TRUE
 )
 
-FetchContent_MakeAvailable(SDL3 glm)
+FetchContent_Declare(tinyobjloader
+  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader
+  GIT_TAG v1.0.6
+  GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(SDL3 glm tinyobjloader)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 add_executable(engine ${SOURCES})
 target_compile_definitions(engine PRIVATE $<$<CONFIG:Debug>:ENGINE_ENABLE_LOGGING>)
 target_include_directories(engine PRIVATE src)
-target_link_libraries(engine PRIVATE SDL3::SDL3 glm::glm)
+target_link_libraries(engine PRIVATE SDL3::SDL3 glm::glm tinyobjloader)
 target_compile_options(engine PRIVATE -Wall -Wextra)
