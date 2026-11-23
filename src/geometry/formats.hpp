@@ -8,7 +8,7 @@ namespace Formats
     // Vertex input layout.
     struct Vertex
     {
-        float x, y, z;    // vec3 position
+        float x, y, z; // vec3 position
     };
 
     // Triangle input layout.

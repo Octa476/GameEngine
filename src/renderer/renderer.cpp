@@ -36,11 +36,18 @@ bool Renderer::init(SDL_Window *window)
         return false;
     }
 
-    // Create a mesh and save it.
+    // Create GPU buffers.
     SDL_GPUBuffer *cubeVertexBuffer = createVertexBuffer_(Geometry::Cube::cubeVertexes);
+    if (!cubeVertexBuffer)
+        return false;
     Uint64 cubeVertexCount = Geometry::Cube::cubeVertexes.size();
+
     SDL_GPUBuffer *cubeIndexesBuffer = createIndexBuffer_(Geometry::Cube::cubeTriangles);
+    if (!cubeIndexesBuffer)
+        return false;
     Uint64 cubeIndexCount = sizeof(Formats::Triangle) * Geometry::Cube::cubeTriangles.size();
+
+    // Create a mesh and saved it in the map.
     mesh_map_["Cube"] = std::make_shared<Mesh>("Cube", cubeVertexBuffer,
                                                cubeVertexCount,
                                                cubeIndexesBuffer,
@@ -52,12 +59,17 @@ bool Renderer::init(SDL_Window *window)
 SDL_GPUBuffer *Renderer::createVertexBuffer_(const std::vector<Formats::Vertex> &vertices)
 {
     // Create the vertex buffer.
-    const Uint32 bufferSize = static_cast<Uint32>(vertices.size()) * static_cast<Uint32>(sizeof(Formats::Vertex));
+    const Uint32 bufferSize = vertices.size() * sizeof(Formats::Vertex);
     SDL_GPUBuffer *vertexBuffer;
     SDL_GPUBufferCreateInfo bufferInfo{};
     bufferInfo.size = bufferSize;
     bufferInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
     vertexBuffer = SDL_CreateGPUBuffer(device_, &bufferInfo);
+    if (!vertexBuffer)
+    {
+        LOG_ERROR("VertexBuffer creation failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     // Create a transfer buffer to upload to the vertex buffer.
     SDL_GPUTransferBuffer *transferBuffer;
@@ -65,9 +77,19 @@ SDL_GPUBuffer *Renderer::createVertexBuffer_(const std::vector<Formats::Vertex> 
     transferInfo.size = bufferSize;
     transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     transferBuffer = SDL_CreateGPUTransferBuffer(device_, &transferInfo);
+    if (!transferBuffer)
+    {
+        LOG_ERROR("TransferBuffer creation failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
-    // fill the transfer buffer
-    Formats::Vertex *data = (Formats::Vertex *)SDL_MapGPUTransferBuffer(device_, transferBuffer, false);
+    // Fill the transfer buffer.
+    Formats::Vertex *data = static_cast<Formats::Vertex *>(SDL_MapGPUTransferBuffer(device_, transferBuffer, false));
+    if (!data)
+    {
+        LOG_ERROR("SDL_MapGPUTransferBuffer failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     SDL_memcpy(data, static_cast<const void *>(vertices.data()), bufferSize);
 
@@ -75,7 +97,18 @@ SDL_GPUBuffer *Renderer::createVertexBuffer_(const std::vector<Formats::Vertex> 
 
     // Start a copy pass.
     SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device_);
+    if (!commandBuffer)
+    {
+        LOG_ERROR("SDL_AcquireGPUCommandBuffer failed: {}", SDL_GetError());
+        return nullptr;
+    }
+
     SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+    if (!copyPass)
+    {
+        LOG_ERROR("SDL_BeginGPUCopyPass failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     // Where is the data.
     SDL_GPUTransferBufferLocation location{};
@@ -93,7 +126,11 @@ SDL_GPUBuffer *Renderer::createVertexBuffer_(const std::vector<Formats::Vertex> 
 
     // End the copy pass.
     SDL_EndGPUCopyPass(copyPass);
-    SDL_SubmitGPUCommandBuffer(commandBuffer);
+    if (!SDL_SubmitGPUCommandBuffer(commandBuffer))
+    {
+        LOG_ERROR("SDL_SubmitGPUCommandBuffer failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     // Release the transfer buffer.
     SDL_ReleaseGPUTransferBuffer(device_, transferBuffer);
@@ -104,12 +141,17 @@ SDL_GPUBuffer *Renderer::createVertexBuffer_(const std::vector<Formats::Vertex> 
 SDL_GPUBuffer *Renderer::createIndexBuffer_(const std::vector<Formats::Triangle> &triangles)
 {
     // Create the index buffer.
-    const Uint32 bufferSize = static_cast<Uint32>(triangles.size()) * static_cast<Uint32>(sizeof(Formats::Triangle)); 
+    const Uint32 bufferSize = static_cast<Uint32>(triangles.size()) * static_cast<Uint32>(sizeof(Formats::Triangle));
     SDL_GPUBuffer *indexBuffer;
     SDL_GPUBufferCreateInfo bufferInfo{};
     bufferInfo.size = bufferSize;
     bufferInfo.usage = SDL_GPU_BUFFERUSAGE_INDEX;
     indexBuffer = SDL_CreateGPUBuffer(device_, &bufferInfo);
+    if (!indexBuffer)
+    {
+        LOG_ERROR("IndexBuffer creation failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     // Create a transfer buffer to upload to the vertex buffer.
     SDL_GPUTransferBuffer *transferBuffer;
@@ -117,9 +159,19 @@ SDL_GPUBuffer *Renderer::createIndexBuffer_(const std::vector<Formats::Triangle>
     transferInfo.size = bufferSize;
     transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     transferBuffer = SDL_CreateGPUTransferBuffer(device_, &transferInfo);
+    if (!transferBuffer)
+    {
+        LOG_ERROR("TransferBuffer creation failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     // Fill the transfer buffer.
-    Formats::Triangle *data = (Formats::Triangle *)SDL_MapGPUTransferBuffer(device_, transferBuffer, false);
+    Formats::Triangle *data = static_cast<Formats::Triangle *>(SDL_MapGPUTransferBuffer(device_, transferBuffer, false));
+    if (!data)
+    {
+        LOG_ERROR("SDL_MapGPUTransferBuffer failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     SDL_memcpy(data, static_cast<const void *>(triangles.data()), bufferSize);
 
@@ -127,7 +179,18 @@ SDL_GPUBuffer *Renderer::createIndexBuffer_(const std::vector<Formats::Triangle>
 
     // Start a copy pass.
     SDL_GPUCommandBuffer *commandBuffer = SDL_AcquireGPUCommandBuffer(device_);
+    if (!commandBuffer)
+    {
+        LOG_ERROR("SDL_AcquireGPUCommandBuffer failed: {}", SDL_GetError());
+        return nullptr;
+    }
+
     SDL_GPUCopyPass *copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+    if (!copyPass)
+    {
+        LOG_ERROR("SDL_BeginGPUCopyPass failed: {}", SDL_GetError());
+        return nullptr;
+    }
 
     // Where is the data.
     SDL_GPUTransferBufferLocation location{};
@@ -145,11 +208,11 @@ SDL_GPUBuffer *Renderer::createIndexBuffer_(const std::vector<Formats::Triangle>
 
     // End the copy pass.
     SDL_EndGPUCopyPass(copyPass);
-    bool ret = SDL_SubmitGPUCommandBuffer(commandBuffer);
-    if (!ret) {
-        LOG_FATAL("Index buffer could not be created!");
+    if (!SDL_SubmitGPUCommandBuffer(commandBuffer))
+    {
+        LOG_ERROR("SDL_SubmitGPUCommandBuffer failed: {}", SDL_GetError());
+        return nullptr;
     }
-
     // Release the transfer buffer.
     SDL_ReleaseGPUTransferBuffer(device_, transferBuffer);
 
@@ -275,7 +338,7 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
 
     // Create the pipeline.
     graphicsPipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &pipelineInfo);
-    if (graphicsPipeline_ == NULL)
+    if (!graphicsPipeline_)
     {
         LOG_FATAL("{}", SDL_GetError());
         return false;
@@ -307,7 +370,7 @@ bool Renderer::beginFrame(SDL_Window *window)
     SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer_, window,
                                           &swapchainTexture, nullptr, nullptr);
 
-    if (swapchainTexture == NULL)
+    if (!swapchainTexture)
     {
         SDL_SubmitGPUCommandBuffer(commandBuffer_);
         commandBuffer_ = nullptr;
@@ -324,8 +387,12 @@ bool Renderer::beginFrame(SDL_Window *window)
     colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
     colorTargetInfo.texture = swapchainTexture;
 
-    renderPass_ =
-        SDL_BeginGPURenderPass(commandBuffer_, &colorTargetInfo, 1, NULL);
+    renderPass_ = SDL_BeginGPURenderPass(commandBuffer_, &colorTargetInfo, 1, NULL);
+    if (!renderPass_)
+    {
+        LOG_ERROR("SDL_BeginGPURenderPass failed: {}", SDL_GetError());
+        return false;
+    }
 
     // Bind the pipeline.
     SDL_BindGPUGraphicsPipeline(renderPass_, graphicsPipeline_);
@@ -337,13 +404,14 @@ bool Renderer::beginFrame(SDL_Window *window)
 
     SDL_BindGPUVertexBuffers(renderPass_, 0, bufferBindingsVertex, 1);
 
-    // Bind the indexes buffer.
+    // Bind the index buffer.
     SDL_GPUBufferBinding bufferBindingsIndex[1];
     bufferBindingsIndex[0].buffer = mesh_map_["Cube"]->indexBuffer_;
     bufferBindingsIndex[0].offset = 0;
 
     SDL_BindGPUIndexBuffer(renderPass_, bufferBindingsIndex, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
+    // Create the information of an object to be rendered.
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
 
@@ -361,11 +429,12 @@ bool Renderer::beginFrame(SDL_Window *window)
 
     glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 
-    UniformBuffer uniform_buffer {model, view, projection, color};
+    // Push the uniform data to the GPU.
+    UniformBuffer uniform_buffer{model, view, projection, color};
     SDL_PushGPUVertexUniformData(commandBuffer_, 0, &uniform_buffer, sizeof(UniformBuffer));
+
     // Issue a draw call.
-    SDL_DrawGPUIndexedPrimitives(renderPass_, mesh_map_["Cube"]->indexCount_, 1, 0 ,0, 0);
-    // SDL_DrawGPUPrimitives(renderPass_, mesh_map_["Cube"]->vertexCount_, 1, 0, 0);
+    SDL_DrawGPUIndexedPrimitives(renderPass_, mesh_map_["Cube"]->indexCount_, 1, 0, 0, 0);
 
     return true;
 }
@@ -389,9 +458,7 @@ bool Renderer::endFrame()
 
 Renderer::~Renderer()
 {
-    // release buffers
-    // SDL_ReleaseGPUBuffer(device, vertexBuffer);
-    // SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+    // Release buffers from all the meshes.
     for (auto it = mesh_map_.begin(); it != mesh_map_.end(); it = next(it))
     {
         SDL_GPUBuffer *vertexBuffer = it->second->vertexBuffer_;
