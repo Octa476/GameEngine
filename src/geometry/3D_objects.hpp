@@ -1,13 +1,14 @@
 #pragma once
 
 #include <vector>
+
 #include "formats.hpp"
 using namespace Formats;
 
-namespace Geometry
-{
-    inline const Shape cube {
-        .vertexes = {
+namespace Geometry {
+inline const Shape cube{
+    .vertexes =
+        {
             {0.0f, 0.0f, 1.0f},
             {1.0f, 0.0f, 1.0f},
             {0.0f, 1.0f, 1.0f},
@@ -17,7 +18,8 @@ namespace Geometry
             {0.0f, 1.0f, 0.0f},
             {1.0f, 1.0f, 0.0f},
         },
-        .triangles = {
+    .triangles =
+        {
             {0, 1, 2},
             {1, 3, 2},
             {2, 3, 7},
@@ -31,7 +33,7 @@ namespace Geometry
             {2, 6, 4},
             {0, 2, 4},
         },
-        .name = "Cube",
-        .description = "A simple cube",
-    };
+    .name = "Cube",
+    .description = "A simple cube",
+};
 };

@@ -1,17 +1,13 @@
 #include "render_context.hpp"
 
-bool RenderContext::init() {
-    return true;
-}
+bool RenderContext::init() { return true; }
 
-RenderDrawList &RenderContext::getRenderDrawList() {
-    return renderDrawList;
-}
+RenderDrawList& RenderContext::getRenderDrawList() { return renderDrawList; }
 
-RenderCameraInfo &RenderContext::getRenderCameraInfo() {
+RenderCameraInfo& RenderContext::getRenderCameraInfo() {
     return renderCameraInfo;
 }
 
-RenderCommandList &RenderContext::getRenderCommandList() {
+RenderCommandList& RenderContext::getRenderCommandList() {
     return renderCommandList;
 }

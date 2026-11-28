@@ -42,3 +42,9 @@ target_compile_definitions(engine PRIVATE $<$<CONFIG:Debug>:ENGINE_ENABLE_LOGGIN
 target_include_directories(engine PRIVATE src)
 target_link_libraries(engine PRIVATE SDL3::SDL3 glm::glm tinyobjloader)
 target_compile_options(engine PRIVATE -Wall -Wextra)
+
+option(COMPILE_WERROR "Compile with the -Werror flag" ON)
+
+if(COMPILE_WERROR)
+  target_compile_options(engine PRIVATE -Werror)
+endif()

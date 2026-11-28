@@ -1,4 +1,5 @@
 #include "window.hpp"
+
 #include "SDL3/SDL_video.h"
 #include "core/log.hpp"
 
@@ -21,8 +22,7 @@ bool Window::isHidden() const {
 bool Window::showWindow() {
     auto ret = SDL_ShowWindow(window_);
 
-    if (!ret)
-        LOG_ERROR("{}", SDL_GetError());
+    if (!ret) LOG_ERROR("{}", SDL_GetError());
 
     return ret;
 }

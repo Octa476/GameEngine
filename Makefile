@@ -1,12 +1,13 @@
 BUILD_DIR = build
 SHADER_DIR = src/shaders
 EXEX = engine
+WERROR = ON
 
 all: build_project
 
 configure:
 	@if [ ! -d "$(BUILD_DIR)" ]; then \
-		cmake -S . -B $(BUILD_DIR); \
+		cmake -S . -B $(BUILD_DIR) -DCOMPILE_WERROR=$(WERROR); \
 	fi
 
 build_project: configure
@@ -22,6 +23,10 @@ run: build_project build_shaders
 clean:
 	cmake --build build --target clean
 	rm -rf shaders/*
+
+clean_hard:
+	rm -rf shaders/*
+	rm -rf build
 
 .PHONY: all configure build_project build_shaders run clean
 
