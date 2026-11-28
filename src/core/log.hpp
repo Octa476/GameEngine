@@ -23,19 +23,19 @@ struct LogMessage {
 };
 
 class LogSink {
-  public:
+   public:
     virtual ~LogSink() = default;
-    virtual void write(const LogMessage &msg) = 0;
+    virtual void write(const LogMessage& msg) = 0;
     virtual void flush() {}
 };
 
 class Log {
-  public:
+   public:
     static void init();
     static void shutdown();
 
     template <typename Sink, typename... Args>
-    static void addSink(Args &&...args) {
+    static void addSink(Args&&... args) {
         static_assert(std::is_base_of<LogSink, Sink>());
 
         auto s = std::make_unique<Sink>(std::forward<Args>(args)...);
@@ -47,8 +47,8 @@ class Log {
 
     template <typename... Args>
     static void write(LogLevel level, std::source_location where,
-                      std::format_string<Args...> fmt, Args &&...args) {
-        if (!isValid(level)) // really shouldn't happen
+                      std::format_string<Args...> fmt, Args&&... args) {
+        if (!isValid(level))  // really shouldn't happen
             return;
 
         std::string text = std::format(fmt, std::forward<Args>(args)...);
@@ -59,7 +59,7 @@ class Log {
     Log() = delete;
     ~Log() = delete;
 
-  private:
+   private:
     static void dispatch(LogLevel level, std::string_view text,
                          std::source_location where);
     static bool isValid(LogLevel level);
@@ -69,26 +69,26 @@ class Log {
 };
 
 class ConsoleSink : public LogSink {
-  public:
-    void write(const LogMessage &msg) override;
+   public:
+    void write(const LogMessage& msg) override;
 };
 
 class FileSink : public LogSink {
-  public:
-    explicit FileSink(const char *path);
+   public:
+    explicit FileSink(const char* path);
     ~FileSink() override;
     void flush() override;
-    void write(const LogMessage &msg) override;
+    void write(const LogMessage& msg) override;
 
-  private:
+   private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
     std::string_view m_path;
 };
-}; // namespace engine
+};  // namespace engine
 
 #if defined(ENGINE_ENABLE_LOGGING)
-#define ENGINE_LOG(level, ...)                                                 \
+#define ENGINE_LOG(level, ...) \
     ::engine::Log::write(level, std::source_location::current(), __VA_ARGS__)
 #else
 #define ENGINE_LOG(level, ...) ((void)0)
