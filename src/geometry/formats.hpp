@@ -2,6 +2,7 @@
 
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_error.h"
+#include <string>
 
 namespace Formats
 {
@@ -15,5 +16,12 @@ namespace Formats
     struct Triangle
     {
         Uint32 i, j, k; // vec3 position
+    };
+
+    struct Shape {
+        const std::vector<Vertex> vertexes;
+        const std::vector<Triangle> triangles;
+        const std::string name;
+        const std::string description;
     };
 }

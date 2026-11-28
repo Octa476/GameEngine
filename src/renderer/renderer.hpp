@@ -6,12 +6,15 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <string>
+#include <optional>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include "../geometry/formats.hpp"
-#include "../camera/camera.hpp"
-#include "mesh.hpp"
+#include "mesh/mesh.hpp"
+#include "render_context/render_context.hpp"
+#include "geometry/formats.hpp"
+#include "geometry/3D_objects.hpp"
 
 class Renderer
 {
@@ -19,8 +22,10 @@ public:
   Renderer() = default;
   ~Renderer();
 
-  bool init(SDL_Window *window);
-  bool beginFrame(SDL_Window *window, const Camera &camera);
+  bool init(SDL_Window *window, RenderCommandList &commandList);
+  bool executeCommands(SDL_Window *window, RenderCommandList &commandList);
+  bool beginFrame(SDL_Window *window);
+  bool render(SDL_Window *window, const RenderCameraInfo &cameraInfo, RenderDrawList &drawList);
   bool endFrame();
 
 private:
@@ -30,11 +35,16 @@ private:
   SDL_GPUCommandBuffer *commandBuffer_{nullptr};
   SDL_GPURenderPass *renderPass_{nullptr};
   SDL_GPUGraphicsPipeline *graphicsPipeline_{nullptr};
-  std::unordered_map<std::string, std::shared_ptr<Mesh>> mesh_map_;
+  std::unordered_map<MeshId, std::unique_ptr<Mesh>> mesh_map_;
+  std::unordered_map<GraphicsId, SDL_GPUGraphicsPipeline *> graphics_pipeline_map_;
 
-  bool createGraphicsPipeline_(SDL_Window *window);
+  std::optional<GraphicsId> createGraphicsPipeline_(SDL_Window *window , const GraphicsProperties &properties);
+  std::optional<MeshId> createMesh_(const MeshProperties &properties);
   SDL_GPUBuffer *createVertexBuffer_(const std::vector<Formats::Vertex> &vertices);
   SDL_GPUBuffer *createIndexBuffer_(const std::vector<Formats::Triangle> &triangles);
+
+  // Used to compute the hash of a name.
+  std::hash<std::string> stringHasher_ {};
 
   struct UniformBuffer
   {

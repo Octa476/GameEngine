@@ -7,8 +7,9 @@
 #include "core/log.hpp"
 #include "../geometry/formats.hpp"
 #include "../geometry/3D_objects.hpp"
+#include "render_context/render_context.hpp"
 
-bool Renderer::init(SDL_Window *window)
+bool Renderer::init(SDL_Window *window, RenderCommandList &commandList)
 {
     device_ = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV |
                                       SDL_GPU_SHADERFORMAT_MSL |
@@ -29,30 +30,9 @@ bool Renderer::init(SDL_Window *window)
         return false;
     }
 
-    // Create a graphics pipeline.
-    if (!createGraphicsPipeline_(window))
-    {
-        LOG_FATAL("Graphics pipeline creation failed!");
-        return false;
-    }
-
-    // Create GPU buffers.
-    SDL_GPUBuffer *cubeVertexBuffer = createVertexBuffer_(Geometry::Cube::cubeVertexes);
-    if (!cubeVertexBuffer)
-        return false;
-    Uint64 cubeVertexCount = Geometry::Cube::cubeVertexes.size();
-
-    SDL_GPUBuffer *cubeIndexesBuffer = createIndexBuffer_(Geometry::Cube::cubeTriangles);
-    if (!cubeIndexesBuffer)
-        return false;
-    Uint64 cubeIndexCount = sizeof(Formats::Triangle) * Geometry::Cube::cubeTriangles.size();
-
-    // Create a mesh and saved it in the map.
-    mesh_map_["Cube"] = std::make_shared<Mesh>("Cube", cubeVertexBuffer,
-                                               cubeVertexCount,
-                                               cubeIndexesBuffer,
-                                               cubeIndexCount);
-
+    // Excute init commands, like creating meshes and graphics pipelines.
+    executeCommands(window, commandList);
+    
     return true;
 }
 
@@ -219,9 +199,49 @@ SDL_GPUBuffer *Renderer::createIndexBuffer_(const std::vector<Formats::Triangle>
     return indexBuffer;
 }
 
-// Graphical pipeline code, OpenGL all over again.
-bool Renderer::createGraphicsPipeline_(SDL_Window *window)
+std::optional<MeshId> Renderer::createMesh_(const MeshProperties &properties)
 {
+    const Formats::Shape &shape = properties.shape;
+
+    // Create GPU buffers.
+    SDL_GPUBuffer *vertexBuffer = createVertexBuffer_(shape.vertexes);
+    if (!vertexBuffer)
+        return std::nullopt;
+    Uint64 vertexCount = shape.vertexes.size();
+
+    SDL_GPUBuffer *indexesBuffer = createIndexBuffer_(shape.triangles);
+    if (!indexesBuffer)
+        return std::nullopt;
+    Uint64 indexCount = sizeof(Formats::Triangle) * shape.triangles.size();
+
+    // Create a mesh and saved it in the map.
+    MeshId mesh_id = static_cast<MeshId>(stringHasher_(shape.name));
+    mesh_map_[mesh_id] = std::make_unique<Mesh>(shape.name,
+                                                vertexBuffer,
+                                                vertexCount,
+                                                indexesBuffer,
+                                                indexCount);
+    return mesh_id;
+}
+
+// Graphical pipeline code, OpenGL all over again.
+std::optional<GraphicsId> Renderer::createGraphicsPipeline_(SDL_Window *window, const GraphicsProperties &properties)
+{
+    SDL_GPUPrimitiveType primitive_type;
+
+    switch (properties.type)
+    {
+    case GraphicsType::Triangles:
+        primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        break;
+
+    case GraphicsType::Lines:
+        primitive_type = SDL_GPU_PRIMITIVETYPE_LINELIST;
+    default:
+        primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+        break;
+    }
+
     // Load the vertex shader code.
     size_t vertexCodeSize;
     std::string path_vertex = shader_dir + std::string("vertex.spv");
@@ -229,7 +249,7 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     if (!vertexCode)
     {
         LOG_FATAL("{}", SDL_GetError());
-        return false;
+        return std::nullopt;
     }
 
     // Create the vertex shader.
@@ -248,7 +268,7 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     if (!vertexShader)
     {
         LOG_FATAL("{}", SDL_GetError());
-        return false;
+        return std::nullopt;
     }
 
     // Free the file.
@@ -261,7 +281,7 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     if (!fragmentCode)
     {
         LOG_FATAL("{}", SDL_GetError());
-        return false;
+        return std::nullopt;
     }
 
     // Create the fragment shader.
@@ -280,7 +300,7 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     if (!fragmentShader)
     {
         LOG_FATAL("{}", SDL_GetError());
-        return false;
+        return std::nullopt;
     }
 
     // Free the file.
@@ -291,7 +311,7 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     SDL_GPUGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.vertex_shader = vertexShader;
     pipelineInfo.fragment_shader = fragmentShader;
-    pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    pipelineInfo.primitive_type = primitive_type;
 
     // Describe the vertex buffers.
     SDL_GPUVertexBufferDescription vertexBufferDesctiptions[1];
@@ -337,11 +357,11 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     pipelineInfo.target_info.color_target_descriptions = colorTargetDescriptions;
 
     // Create the pipeline.
-    graphicsPipeline_ = SDL_CreateGPUGraphicsPipeline(device_, &pipelineInfo);
-    if (!graphicsPipeline_)
+    SDL_GPUGraphicsPipeline *graphicsPipeline = SDL_CreateGPUGraphicsPipeline(device_, &pipelineInfo);
+    if (!graphicsPipeline)
     {
         LOG_FATAL("{}", SDL_GetError());
-        return false;
+        return std::nullopt;
     }
     else
     {
@@ -352,10 +372,53 @@ bool Renderer::createGraphicsPipeline_(SDL_Window *window)
     SDL_ReleaseGPUShader(device_, vertexShader);
     SDL_ReleaseGPUShader(device_, fragmentShader);
 
+    GraphicsId graphics_id = static_cast<MeshId>(stringHasher_(properties.name));
+    graphics_pipeline_map_[graphics_id] = graphicsPipeline;
+
+    return graphics_id;
+}
+
+bool Renderer::executeCommands(SDL_Window *window, RenderCommandList &commandList)
+{
+    std::vector<MeshProperties> &createMeshList = commandList.createMeshList;
+    std::vector<MeshHandler> &resultMeshList = commandList.resultMeshList;
+
+    for (MeshProperties &prop : createMeshList)
+    {
+        auto mesh_id = createMesh_(prop);
+        if (mesh_id.has_value())
+        {
+            resultMeshList.push_back(MeshHandler{.generation_id = prop.generation_id, .mesh_id = mesh_id.value()});
+        }
+        else
+        {
+            createMeshList.clear();
+            return false;
+        }
+    }
+    createMeshList.clear();
+
+    std::vector<GraphicsProperties> &createGraphicsList = commandList.createGraphicsList;
+    std::vector<GraphicsHandler> &resultGraphicsList = commandList.resultGrapicsList;
+
+    for (GraphicsProperties &prop : createGraphicsList)
+    {
+        auto graphics_id = createGraphicsPipeline_(window, prop);
+        if (graphics_id.has_value())
+        {
+            resultGraphicsList.push_back(GraphicsHandler{.generation_id = prop.generation_id, .graphics_id = graphics_id.value()});
+        }
+        else
+        {
+            createGraphicsList.clear();
+            return false;
+        }
+    }
+    createGraphicsList.clear();
     return true;
 }
 
-bool Renderer::beginFrame(SDL_Window *window, const Camera &camera)
+bool Renderer::beginFrame(SDL_Window *window)
 {
     commandBuffer_ = SDL_AcquireGPUCommandBuffer(device_);
 
@@ -394,47 +457,59 @@ bool Renderer::beginFrame(SDL_Window *window, const Camera &camera)
         return false;
     }
 
-    // Bind the pipeline.
-    SDL_BindGPUGraphicsPipeline(renderPass_, graphicsPipeline_);
+    return true;
+}
 
-    // Bind the vertex buffer.
-    SDL_GPUBufferBinding bufferBindingsVertex[1];
-    bufferBindingsVertex[0].buffer = mesh_map_["Cube"]->vertexBuffer_;
-    bufferBindingsVertex[0].offset = 0;
+bool Renderer::render(SDL_Window *window, const RenderCameraInfo &cameraInfo, RenderDrawList &drawList)
+{
+    graphicsPipeline_ = nullptr;
+    for (game::Object &obj : drawList.drawList)
+    {
+        auto graphics_pipeline_it = graphics_pipeline_map_.find(obj.graphicsId);
+        if (graphics_pipeline_it == graphics_pipeline_map_.end())
+        {
+            LOG_ERROR("Graphics pipeline for {}", obj.to_string());
+            continue;
+        }
 
-    SDL_BindGPUVertexBuffers(renderPass_, 0, bufferBindingsVertex, 1);
+        if (graphics_pipeline_it->second != graphicsPipeline_)
+        {
+            graphicsPipeline_ = graphics_pipeline_it->second;
+            // Bind the pipeline.
+            SDL_BindGPUGraphicsPipeline(renderPass_, graphicsPipeline_);
+        }
 
-    // Bind the index buffer.
-    SDL_GPUBufferBinding bufferBindingsIndex[1];
-    bufferBindingsIndex[0].buffer = mesh_map_["Cube"]->indexBuffer_;
-    bufferBindingsIndex[0].offset = 0;
 
-    SDL_BindGPUIndexBuffer(renderPass_, bufferBindingsIndex, SDL_GPU_INDEXELEMENTSIZE_32BIT);
+        auto mesh_it = mesh_map_.find(obj.meshId); 
+        if (mesh_it == mesh_map_.end())
+        {
+            LOG_ERROR("Mesh not found for {}", obj.to_string());
+            continue;
+        }
 
-    // Create the information of an object to be rendered.
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
+        Mesh *mesh = mesh_it->second.get();
 
-    // glm::vec3 cameraPos = glm::vec3(0.0f, 2.0f, 6.0f);
-    // glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-    // glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+        // Bind the vertex buffer.
+        SDL_GPUBufferBinding bufferBindingsVertex[1];
+        bufferBindingsVertex[0].buffer = mesh->vertexBuffer_;
+        bufferBindingsVertex[0].offset = 0;
 
-    // glm::mat4 view = glm::lookAt(cameraPos, cameraTarget, worldUp);
+        SDL_BindGPUVertexBuffers(renderPass_, 0, bufferBindingsVertex, 1);
 
-    // glm::mat4 projection = glm::perspective(
-    //     glm::radians(45.0f),
-    //     1280.0f / 720.0f,
-    //     0.1f,
-    //     100.0f);
+        // Bind the index buffer.
+        SDL_GPUBufferBinding bufferBindingsIndex[1];
+        bufferBindingsIndex[0].buffer = mesh->indexBuffer_;
+        bufferBindingsIndex[0].offset = 0;
 
-    glm::vec4 color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        SDL_BindGPUIndexBuffer(renderPass_, bufferBindingsIndex, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
-    // Push the uniform data to the GPU.
-    UniformBuffer uniform_buffer{model, camera.getViewMatrix(), camera.getProjectionMatrix(), color};
-    SDL_PushGPUVertexUniformData(commandBuffer_, 0, &uniform_buffer, sizeof(UniformBuffer));
+        // Push the uniform data to the GPU.
+        UniformBuffer uniform_buffer{obj.model, cameraInfo.viewMatrix, cameraInfo.projectionMatrix, obj.color};
+        SDL_PushGPUVertexUniformData(commandBuffer_, 0, &uniform_buffer, sizeof(UniformBuffer));
 
-    // Issue a draw call.
-    SDL_DrawGPUIndexedPrimitives(renderPass_, mesh_map_["Cube"]->indexCount_, 1, 0, 0, 0);
+        // Issue a draw call.
+        SDL_DrawGPUIndexedPrimitives(renderPass_, mesh->indexCount_, 1, 0, 0, 0);
+    }
 
     return true;
 }
@@ -470,9 +545,11 @@ Renderer::~Renderer()
 
     if (device_)
     {
-        // Release the pipeline.
-        if (graphicsPipeline_)
-            SDL_ReleaseGPUGraphicsPipeline(device_, graphicsPipeline_);
+        // Release all pipelines.
+        for (auto it = graphics_pipeline_map_.begin(); it != graphics_pipeline_map_.end(); it = next(it))
+        {
+            SDL_ReleaseGPUGraphicsPipeline(device_, it->second);
+        }
         SDL_DestroyGPUDevice(device_);
         LOG_TRACE("Released GPU device");
     }

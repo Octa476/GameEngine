@@ -5,7 +5,8 @@
 #include "SDL3/SDL_init.h"
 #include "platform/window.hpp"
 #include "renderer/renderer.hpp"
-#include "camera/camera.hpp"
+#include "game_engine/game_engine.hpp"
+#include "render_context/render_context.hpp"
 
 namespace engine {
 
@@ -21,10 +22,11 @@ class Application {
   private:
     Window m_window;
     Renderer m_renderer;
-    Camera m_camera;
-    Uint64 m_lastTick;
-    Uint64 m_deltaTime;
+    game::GameEngine m_gameEngine;
+    RenderContext m_renderContext;
 
-    void checkStates_();
+    Uint64 m_lastTick;
+    float m_deltaTime;
+
 };
 } // namespace engine

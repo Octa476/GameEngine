@@ -48,14 +48,14 @@ class Camera {
     float sensitivityZoomIn_ {1.7f};
     float sensitivityZoomOut_ {1.7f};
 
-    float sensitivityMoveFront {1.7f};
-    float sensitivityMoveBack {1.7f};
+    float sensitivityMoveFront {40.7f};
+    float sensitivityMoveBack {40.7f};
 
-    float sensitivityMoveUp {1.7f};
-    float sensitivityMoveDown {1.7f};
+    float sensitivityMoveUp {40.7f};
+    float sensitivityMoveDown {40.7f};
 
-    float sensitivityMoveRight {1.7f};
-    float sensitivityMoveLeft {1.7f};
+    float sensitivityMoveRight {40.7f};
+    float sensitivityMoveLeft {40.7f};
 
     float sensitivityPitch {0.2f};
     float sensitivityYaw {0.2f};
